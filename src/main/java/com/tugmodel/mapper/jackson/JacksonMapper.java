@@ -16,18 +16,22 @@ package com.tugmodel.mapper.jackson;
 
 import java.io.IOException;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tugmodel.client.mapper.AbstractStringMapper;
+import com.tugmodel.client.mapper.BaseMapper;
 import com.tugmodel.client.model.Model;
 
 /**
  * Mapper implementation using Jackson. TODO: Configure Mapper via a
  * tm-mapper-defaults.json file under resources/config/.
+ * 
+ * For recursive dependencies check @JsonFilter : http://www.theotherian.com/2014/02/jackson-mixins-and-modules-external-classes.html
+ * 
+ * NOTE: getters and setters are used when serializing/deserializing a model. Also for attributes set using the generic
+ *       set/get methods jsonanygetter and jsonanysetter annotations are used.
  */
-public abstract class JacksonMapper<M extends Model> extends AbstractStringMapper<M> {
+public abstract class JacksonMapper<M extends Model> extends BaseMapper<M> {
+	public static final String KEY_CLASS = "@c";
 	protected ObjectMapper mapper;
 		
 	public abstract ObjectMapper initMapper();
@@ -63,7 +67,7 @@ public abstract class JacksonMapper<M extends Model> extends AbstractStringMappe
 	}
 	
 	public void updateModel(Object fromValue, M toModel) {
-		//You can use destModel.getAttributes() and then setAttributes or https://www.google.ro/search?q=screw+him&oq=screw+him&aqs=chrome..69i57j0l5.3257j0j4&sourceid=chrome&ie=UTF-8#q=jackson+serialize+on+existing+object&*
+		// You can use destModel.getAttributes() and then setAttributes or https://www.google.ro/search?q=screw+him&oq=screw+him&aqs=chrome..69i57j0l5.3257j0j4&sourceid=chrome&ie=UTF-8#q=jackson+serialize+on+existing+object&*
 		try {
 			getMapper().readerForUpdating(toModel).readValue((String)fromValue);
 		} catch (IOException e) {

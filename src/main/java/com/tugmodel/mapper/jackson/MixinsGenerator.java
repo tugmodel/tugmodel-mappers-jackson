@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.tugmodel.client.model.Model;
 import com.tugmodel.client.model.meta.Meta;
@@ -49,15 +50,33 @@ public class MixinsGenerator extends SimpleModule {
 	 * This mixin does not use Meta information. Is only used to bootstrap the loading/config of the framework.
 	 * Since it does not have access to meta information a model.toString will make fields appear twice.
 	 */
-	@JsonAutoDetect(fieldVisibility = Visibility.NONE, getterVisibility = Visibility.ANY, setterVisibility = Visibility.ANY)
-	@JsonPropertyOrder({ "id", "version", "tenant" })	
-	public static abstract class BootstrapMixin {
-		 @JsonAnyGetter
-		 public abstract Map getExtraAttributes();
-		 @JsonAnySetter
-		 public abstract Model set(String name, Object value);
-	}
-	
+    @JsonAutoDetect(fieldVisibility = Visibility.NONE, getterVisibility = Visibility.ANY, setterVisibility = Visibility.ANY)
+    @JsonPropertyOrder({ Model.KEY_ID, Model.KEY_VERSION })
+    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = JacksonMapper.KEY_CLASS,
+            defaultImpl = Model.class)
+    public static abstract class BootstrapMixinObject {
+    }
+    public static abstract class BootstrapModelMixin {
+        @JsonAnyGetter
+        public abstract Map<String, Object> getExtraAttributes();
+        @JsonAnySetter
+        // https://github.com/FasterXML/jackson-databind/issues/901 does not let type information for subelements.
+        public abstract Model set(String name, Object value);
+    }
+    
+    @JsonAutoDetect(fieldVisibility = Visibility.NONE, getterVisibility = Visibility.ANY, setterVisibility = Visibility.ANY)
+    @JsonPropertyOrder({ Model.KEY_ID, Model.KEY_VERSION })
+    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = JacksonMapper.KEY_CLASS,
+            defaultImpl = Model.class)
+    public static abstract class BootstrapConfigModelMixin {
+        @JsonAnyGetter
+        public abstract Map<String, Object> getExtraAttributes();
+
+        @JsonAnySetter
+        // https://github.com/FasterXML/jackson-databind/issues/901 does not let type information for subelements.
+        public abstract Model set(String name, Object value);
+    }
+	    
 	
 	public MixinsGenerator(String id) {
 		super(id);
