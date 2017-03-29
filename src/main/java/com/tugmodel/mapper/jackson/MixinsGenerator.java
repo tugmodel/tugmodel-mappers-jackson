@@ -52,13 +52,14 @@ public class MixinsGenerator extends SimpleModule {
 	 */
     @JsonAutoDetect(fieldVisibility = Visibility.NONE, getterVisibility = Visibility.ANY, setterVisibility = Visibility.ANY)
     @JsonPropertyOrder({ Model.KEY_ID, Model.KEY_VERSION })
-    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = JacksonMapper.KEY_CLASS,
-            defaultImpl = Model.class)
+    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = JacksonMapper.KEY_CLASS/*,
+            defaultImpl = Model.class*/)
     public static abstract class BootstrapMixinObject {
     }
-    public static abstract class BootstrapModelMixin {
+
+    public static abstract class NoClassAnnotationsModelMixin {
         @JsonAnyGetter
-        public abstract Map<String, Object> getExtraAttributes();
+        public abstract Map<String, Object> extraFields();
         @JsonAnySetter
         // https://github.com/FasterXML/jackson-databind/issues/901 does not let type information for subelements.
         public abstract Model set(String name, Object value);
@@ -66,11 +67,24 @@ public class MixinsGenerator extends SimpleModule {
     
     @JsonAutoDetect(fieldVisibility = Visibility.NONE, getterVisibility = Visibility.ANY, setterVisibility = Visibility.ANY)
     @JsonPropertyOrder({ Model.KEY_ID, Model.KEY_VERSION })
-    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = JacksonMapper.KEY_CLASS,
-            defaultImpl = Model.class)
-    public static abstract class BootstrapConfigModelMixin {
+    public static abstract class NoTypeInfoModelMixin {
         @JsonAnyGetter
-        public abstract Map<String, Object> getExtraAttributes();
+        public abstract Map<String, Object> extraFields();
+        @JsonAnySetter
+        // https://github.com/FasterXML/jackson-databind/issues/901 does not let type information for subelements.
+        public abstract Model set(String name, Object value);
+    }
+    
+    // Used to force subchilds write "@c" when serialized.
+    // Also note that if you use it here then all the elements should specify the class @c.
+    @JsonAutoDetect(fieldVisibility = Visibility.NONE, getterVisibility = Visibility.ANY, setterVisibility = Visibility.ANY)
+    @JsonPropertyOrder({ "id", "version", "tenant" }) // Will need to be set in the meta. It seems that it does not
+                                                      // propagate to children.
+    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = JacksonMapper.KEY_CLASS
+            /*,defaultImpl = Model.class*/)
+    public static abstract class WithClassAnnotationsModelMixin {
+        @JsonAnyGetter
+        public abstract Map<String, Object> extraFields();
 
         @JsonAnySetter
         // https://github.com/FasterXML/jackson-databind/issues/901 does not let type information for subelements.
@@ -154,7 +168,7 @@ public class MixinsGenerator extends SimpleModule {
 		
 		try {
 			// cc.addMethod(m);
-			String extraMethodDef = "public abstract java.util.Map getExtraAttributes();";
+            String extraMethodDef = "public abstract java.util.Map extraFields();";
 			CtMethod extraMethod = CtNewMethod.make(extraMethodDef, cc); // CtMethod.make(extraMethodDef, cc);
 			cc.addMethod(extraMethod);
 			AnnotationsAttribute anyGetterAttribute = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);

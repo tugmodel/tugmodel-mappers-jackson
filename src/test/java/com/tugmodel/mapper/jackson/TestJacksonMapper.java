@@ -30,7 +30,7 @@ import com.tugmodel.client.model.Model;
 public class TestJacksonMapper {
     protected Mapper mapper;
     
-    public void pretyPrintTest() {
+    public void prettyPrintTest() {
         Model m = new Model().set("x", 1).set("y", "1").set("z", null);
                 
         String s = (String)mapper.serialize(m);
@@ -118,7 +118,7 @@ public class TestJacksonMapper {
     
     public static class ZModel extends Model<ZModel>{
         public int getZ() {
-            return asInteger("z");
+            return asInt("z");
         }
         public ZModel setZ(int value) {
             return set("z", value + 1);

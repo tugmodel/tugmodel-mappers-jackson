@@ -14,14 +14,18 @@
  */
 package com.tugmodel.mapper.jackson;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import com.tugmodel.client.mapper.Mapper;
 import com.tugmodel.client.model.Model;
 
 
@@ -35,12 +39,39 @@ public class TestJacksonConfigReaderMapper extends TestJacksonMapper {
     }
     
     @Test
-    public void pretyPrintTest() {
-        super.pretyPrintTest();
+    public void prettyPrintTest() {
+        Model m = new Model().set("x", 1).set("y", "1").set("z", null);
+        
+        String s = (String)mapper.serialize(m);
+        String indent = "  ", lf = System.getProperty("line.separator");
+        String expected = "{" + lf + 
+                //indent + "\"" + JacksonMapper.KEY_CLASS + "\" : \"" + Model.class.getCanonicalName() + "\"," + lf +
+                indent + "\"id\" : \"" + m.getId() + "\"," + lf +
+                indent + "\"x\" : 1," + lf +
+                indent + "\"y\" : \"1\"," + lf +
+                indent + "\"z\" : null" + lf +
+                "}";
+        
+        StringBuilder sb = new StringBuilder();
+        if (expected.length() != s.length()) {
+            for (int i = 0; i < s.length(); i++) {
+                if (expected.length() > i) {
+                    sb.append(s.charAt(i));
+                    if (s.charAt(i) != expected.charAt(i)) {                        
+                        System.out.println("After '" + sb.toString() + "' found '" + (int)s.charAt(i) + 
+                                "' expected '" + (int)expected.charAt(i) + "'");
+                        break;
+                    }
+                }
+            }
+            throw new RuntimeException("Expected '" + expected + "' but got '" + s + "'");
+        }
+        
+        assertTrue(s.equals(expected));
     }
 
     @Test
-    public void test2wayUsingPrettyMapper() {        
+    public void test2wayUsingPrettyMapper() {
         super.test2wayUsingPrettyMapper();
     }
     
@@ -65,13 +96,36 @@ public class TestJacksonConfigReaderMapper extends TestJacksonMapper {
         String s = (String) mapper.serialize(m);
         Model m2 = mapper.deserialize(s);  // The other way around. m2.get("child")
 
-        assertTrue(m2.get("child").getClass().equals(LinkedHashMap.class));  // Type info must not be lost.
+        // assertTrue(m2.get("child").getClass().equals(LinkedHashMap.class)); // Type info must not be lost.
+        assertTrue(m2.get("child").getClass().equals(LinkedHashMap.class));
     }
    
     
     @Test
     public void testGettersWithConfigMapper() {
-        super.testGettersWithConfigMapper();        
+        Mapper<ZModel> zMapper = mapper;
+        ZModel z = new ZModel();
+        z.setZ(1);
+        String s = (String) zMapper.serialize(z);
+        // Config reader does not uses type information for model ZModel.
+        Model m2 = (Model) zMapper.deserialize(s);
+        // assertEquals(m2.getZ() - 1, z.getZ()); // -1 because the "setZ" method adds 1.
+        assertEquals(m2.asInt("z"), z.getZ()); // -1 because the "setZ" method adds 1.
+    }
+
+    @Test
+    public void testConversion() {
+        Map map = new HashMap();
+        map.put("id", "1");
+        Model model = ((Mapper<Model>) mapper).convert(map, Model.class);
+        assertEquals(model.getId(), "1");
+
+        // Map map2 = new HashMap();
+        // map2.put("id", "1");
+        // map2.put("@c", "com.tugmodel.client.model.config.Config");
+        // Config config = ((Mapper<Model>) mapper).convert(map2, Config.class);
+        // assertTrue(model.getClass() == Config.class);
+
     }
 }
 
