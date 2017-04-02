@@ -32,45 +32,68 @@ import com.tugmodel.client.model.Model;
  *       set/get methods jsonanygetter and jsonanysetter annotations are used.
  */
 public abstract class JacksonMapper<M extends Model> extends BaseMapper<M> {
-	public static final String KEY_CLASS = "@c";
-	protected ObjectMapper mapper;
-		
-	public abstract ObjectMapper initMapper();
-	
-	public ObjectMapper getMapper() {
-		if (mapper == null) {			
-			mapper = initMapper();
-		}
-		return mapper;
-	}
-	public void setMapper(ObjectMapper mapper) {
-		this.mapper = mapper;
-	}
+    public static final String KEY_CLASS = "@c";
+    protected ObjectMapper mapper;
 
-	@Override
-	public Object serialize(M src) {
-		try {
-			return getMapper().writeValueAsString(src);
-		} catch (JsonProcessingException e) {
+    public abstract ObjectMapper initMapper();
+
+    public ObjectMapper getMapper() {
+        if (mapper == null) {
+            mapper = initMapper();
+        }
+        return mapper;
+    }
+
+    public void setMapper(ObjectMapper mapper) {
+        this.mapper = mapper;
+    }
+
+    @Override
+    public Object serialize(M src) {
+        try {
+            return getMapper().writeValueAsString(src);
+        } catch (JsonProcessingException e) {
             return reThrow(e);
-		}
-	}
+        }
+    }
 
-	@Override
-	public M deserialize(Object src) {
-		// new TypeReference<Map<String, Object>  http://stackoverflow.com/questions/11936620/jackson-deserialising-json-string-typereference-vs-typefactory-constructcoll
-		// http://stackoverflow.com/questions/14362247/jackson-adding-extra-fields-to-an-object-in-serialization
-		try {
+    @Override
+    public M deserialize(Object src) {
+        // new TypeReference<Map<String, Object>
+        // http://stackoverflow.com/questions/11936620/jackson-deserialising-json-string-typereference-vs-typefactory-constructcoll
+        // http://stackoverflow.com/questions/14362247/jackson-adding-extra-fields-to-an-object-in-serialization
+        try {
             // TODO: Cache model class to avoid forName().
             // return (M)getMapper().readValue(src.toString(), Model.class);
-            Class modelClass = getTugConfig() == null ? Model.class
-                    : Class.forName(getTugConfig().asModel("model").asString("class"));
+            Class modelClass = Model.class;
+            if (getTugConfig() != null) {
+                modelClass = Class.forName((String) getTugConfig().getModel().get("class"));
+            }
+            //
             return (M) getMapper().readValue(src.toString(), modelClass);
-		} catch (Exception e) {
+        } catch (Exception e) {
             return (M) reThrow(e);
-		}
-	}
-	
+        }
+    }
+
+    @Override
+    public Object serialize(Object src) {
+        try {
+            return getMapper().writeValueAsString(src);
+        } catch (JsonProcessingException e) {
+            return reThrow(e);
+        }
+    }
+
+    @Override
+    public <T> T deserialize(Object src, Class<T> destClass) {
+        try {
+            return getMapper().readValue(src.toString(), destClass);
+        } catch (Exception e) {
+            return (T) reThrow(e);
+        }
+    }
+
     public void updateModel(Object src, M dest) {
         // https://www.google.ro/search?q=screw+him&oq=screw+him&aqs=chrome..69i57j0l5.3257j0j4&sourceid=chrome&ie=UTF-8#q=jackson+serialize+on+existing+object&*
         // ATTENTION: Always specify the base Model.class on which the annotations are added.
@@ -90,25 +113,25 @@ public abstract class JacksonMapper<M extends Model> extends BaseMapper<M> {
             reThrow(e);
         }
 
-	}	
-	
-	@Override
-    public <T> T convert(Object src, Class<T> destClass) {
-        return (T) getMapper().convertValue(src, destClass);
-	}
+    }
 
-	/**
-	 * Used in debug/development mode to have access to a pretty print of the
-	 * actual model or object.
-	 */
+    @Override
+    public <T> T convert(Object src, Class<T> destClass) {
+        return (T) getMapper().convertValue(src, destClass); // getMapper().writeValueAsString(src)
+                                                             // getMapper().convertValue(src, Object.class)
+    }
+
+    /**
+     * Used in debug/development mode to have access to a pretty print of the actual model or object.
+     */
     public String toPrettyString(Object src) {
-		try {
+        try {
             // return getMapper().writeValueAsString(fromValue);
             return JacksonMappers.getPrettyPrintMapper().getMapper().writeValueAsString(src);
-		} catch (JsonProcessingException e) {
+        } catch (JsonProcessingException e) {
             return (String) reThrow(e);
-		}
-	}
+        }
+    }
 
     public Object reThrow(Exception e) {
         if (e instanceof JsonProcessingException) {

@@ -15,6 +15,7 @@
 package com.tugmodel.mapper.jackson;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -22,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.module.SimpleModule;
@@ -45,11 +47,11 @@ import javassist.bytecode.annotation.StringMemberValue;
  * Setup mixins based on the meta information.
  */
 public class MixinsGenerator extends SimpleModule {
-	
-	/**
-	 * This mixin does not use Meta information. Is only used to bootstrap the loading/config of the framework.
-	 * Since it does not have access to meta information a model.toString will make fields appear twice.
-	 */
+
+    /**
+     * This mixin does not use Meta information. Is only used to bootstrap the loading/config of the framework. Since it
+     * does not have access to meta information a model.toString will make fields appear twice.
+     */
     @JsonAutoDetect(fieldVisibility = Visibility.NONE, getterVisibility = Visibility.ANY, setterVisibility = Visibility.ANY)
     @JsonPropertyOrder({ Model.KEY_ID, Model.KEY_VERSION })
     @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = JacksonMapper.KEY_CLASS/*,
@@ -70,18 +72,34 @@ public class MixinsGenerator extends SimpleModule {
     public static abstract class NoTypeInfoModelMixin {
         @JsonAnyGetter
         public abstract Map<String, Object> extraFields();
+
         @JsonAnySetter
-        // https://github.com/FasterXML/jackson-databind/issues/901 does not let type information for subelements.
+        // https://github.com/FasterXML/jackson-databind/issues/901 does not let type information for subelements. Works
+        // OK in 2.8.6.
         public abstract Model set(String name, Object value);
     }
     
+    // @JsonAutoDetect(fieldVisibility = Visibility.NONE, getterVisibility = Visibility.ANY,
+    // setterVisibility = Visibility.ANY)
+    // @JsonPropertyOrder({ Model.KEY_ID, Model.KEY_VERSION })
+    // @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = JacksonMapper.KEY_CLASS
+    // ,defaultImpl = Model.class)
+    // public static abstract class WithClassAnnotationsModelMixinDefaultImpl {
+    // @JsonAnyGetter
+    // public abstract Map<String, Object> extraFields();
+    // @JsonAnySetter
+    // // https://github.com/FasterXML/jackson-databind/issues/901 does not let type information for subelements. Works
+    // // OK in 2.8.6.
+    // public abstract Model set(String name, Object value);
+    // }
+
     // Used to force subchilds write "@c" when serialized.
     // Also note that if you use it here then all the elements should specify the class @c.
     @JsonAutoDetect(fieldVisibility = Visibility.NONE, getterVisibility = Visibility.ANY, setterVisibility = Visibility.ANY)
     @JsonPropertyOrder({ "id", "version", "tenant" }) // Will need to be set in the meta. It seems that it does not
                                                       // propagate to children.
     @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = JacksonMapper.KEY_CLASS
-            /*,defaultImpl = Model.class*/)
+    /* ,defaultImpl = Model.class */)
     public static abstract class WithClassAnnotationsModelMixin {
         @JsonAnyGetter
         public abstract Map<String, Object> extraFields();
@@ -89,119 +107,135 @@ public class MixinsGenerator extends SimpleModule {
         @JsonAnySetter
         // https://github.com/FasterXML/jackson-databind/issues/901 does not let type information for subelements.
         public abstract Model set(String name, Object value);
+
+        // @JsonProperty
+        // protected Map<String, Object> data = new LinkedHashMap<String, Object>();
     }
-	    
-	
-	public MixinsGenerator(String id) {
-		super(id);
-	}
 
-	protected void generateModelMixin(Meta meta, SetupContext context) {
-		String pkgName = "com.tugmodel.client.mapper.";
-		String mixinClassName = pkgName + getModuleName() + meta.getId();
-		try {
-			Class.forName(mixinClassName);
-			System.out.println("Mixin " + mixinClassName + " already exists.");
-			return;
-		} catch( ClassNotFoundException e ) {
-			//my class isn't there!			
-		}
-		
-		// https://jboss-javassist.github.io/javassist/tutorial/tutorial3.html
-		// http://blog.javaforge.net/post/31913732423/howto-create-java-pojo-at-runtime-with-javassist
-		// Tools like https://github.com/OpenHFT/Java-Runtime-Compiler use
-		// ToolProvider that is only bundled in JDK (javac is missing from JRE).
-		// http://stackoverflow.com/questions/26117147/how-can-i-compile-source-code-with-javassist
-		// The alternative is using javassist but we will not have access to the
-		// source code.
-		ClassPool pool = ClassPool.getDefault();
-		CtClass cc = pool.makeClass(mixinClassName);
-		// CtClass mixinClass = pool.get(pkgName + "ModelMixin"); // Means that
-		// the class already exists.
+    @JsonAutoDetect(fieldVisibility = Visibility.NONE, getterVisibility = Visibility.NONE, setterVisibility = Visibility.NONE)
+    public static abstract class TypedMapper {
+        /**
+         * The underlying map is serialized. No getters/setters are called. Only newer Jackson versions have solved the
+         * issue https://github.com/FasterXML/jackson-databind/issues/901 .
+         */
+        @JsonProperty
+        protected Map<String, Object> data = new LinkedHashMap<String, Object>();
+    }
 
-		// Without the call to "makePackage()", package information is lost
-		// pool.makePackage(pool.getClassLoader(), pkgName);
-		ClassFile ccFile = cc.getClassFile();
-		ConstPool constPool = ccFile.getConstPool();
+    public MixinsGenerator(String id) {
+        super(id);
+    }
 
-		// @JsonAutoDetect(fieldVisibility = Visibility.NONE, getterVisibility =
-		// Visibility.ANY, setterVisibility = Visibility.ANY)
-		// @JsonPropertyOrder({ "id", "version", "tenant" })
-		AnnotationsAttribute autoDetectAttr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
-		Annotation autoDetectAnnot = new Annotation("com.fasterxml.jackson.annotation.JsonAutoDetect", constPool);
-		EnumMemberValue e1 = new EnumMemberValue(constPool);
-		e1.setType(Visibility.NONE.getClass().getName());
-		e1.setValue("NONE");
-		autoDetectAnnot.addMemberValue("fieldVisibility", e1);
+    protected void generateModelMixin(Meta meta, SetupContext context) {
+        String pkgName = "com.tugmodel.client.mapper.";
+        String mixinClassName = pkgName + getModuleName() + meta.getId();
+        try {
+            Class.forName(mixinClassName);
+            System.out.println("Mixin " + mixinClassName + " already exists.");
+            return;
+        } catch (ClassNotFoundException e) {
+            // my class isn't there!
+        }
 
-		EnumMemberValue e2 = new EnumMemberValue(constPool);
-		e2.setType(Visibility.NONE.getClass().getName());
-		e2.setValue("ANY");
-		autoDetectAnnot.addMemberValue("getterVisibility", e2);
+        // https://jboss-javassist.github.io/javassist/tutorial/tutorial3.html
+        // http://blog.javaforge.net/post/31913732423/howto-create-java-pojo-at-runtime-with-javassist
+        // Tools like https://github.com/OpenHFT/Java-Runtime-Compiler use
+        // ToolProvider that is only bundled in JDK (javac is missing from JRE).
+        // http://stackoverflow.com/questions/26117147/how-can-i-compile-source-code-with-javassist
+        // The alternative is using javassist but we will not have access to the
+        // source code.
+        ClassPool pool = ClassPool.getDefault();
+        CtClass cc = pool.makeClass(mixinClassName);
+        // CtClass mixinClass = pool.get(pkgName + "ModelMixin"); // Means that
+        // the class already exists.
 
-		EnumMemberValue e3 = new EnumMemberValue(constPool);
-		e3.setType(Visibility.NONE.getClass().getName());
-		e3.setValue("ANY");
-		autoDetectAnnot.addMemberValue("setterVisibility", e3);
+        // Without the call to "makePackage()", package information is lost
+        // pool.makePackage(pool.getClassLoader(), pkgName);
+        ClassFile ccFile = cc.getClassFile();
+        ConstPool constPool = ccFile.getConstPool();
 
-		autoDetectAttr.addAnnotation(autoDetectAnnot);
-		ccFile.addAttribute(autoDetectAttr);
+        // @JsonAutoDetect(fieldVisibility = Visibility.NONE, getterVisibility =
+        // Visibility.ANY, setterVisibility = Visibility.ANY)
+        // @JsonPropertyOrder({ "id", "version", "tenant" })
+        AnnotationsAttribute autoDetectAttr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
+        Annotation autoDetectAnnot = new Annotation("com.fasterxml.jackson.annotation.JsonAutoDetect", constPool);
+        EnumMemberValue e1 = new EnumMemberValue(constPool);
+        e1.setType(Visibility.NONE.getClass().getName());
+        e1.setValue("NONE");
+        autoDetectAnnot.addMemberValue("fieldVisibility", e1);
 
-		// @JsonPropertyOrder({ "id", "version", "tenant" })
-		AnnotationsAttribute orderAttr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
-		Annotation orderAnnot = new Annotation("com.fasterxml.jackson.annotation.JsonPropertyOrder", constPool);
-		ArrayList<StringMemberValue> members = new ArrayList<StringMemberValue>();
-		StringMemberValue member = new StringMemberValue(constPool);
-		member.setValue("id");
-		members.add(member);
-		StringMemberValue member2 = new StringMemberValue(constPool);
-		member2.setValue("version");
-		members.add(member2);
-		ArrayMemberValue arrayValue = new ArrayMemberValue(constPool);
-		arrayValue.setValue(members.toArray(new MemberValue[0]));
-		orderAnnot.addMemberValue("value", arrayValue); // The property name of JsonPropertyOrder#value().
-		orderAttr.addAnnotation(orderAnnot);
-		ccFile.addAttribute(orderAttr);
+        EnumMemberValue e2 = new EnumMemberValue(constPool);
+        e2.setType(Visibility.NONE.getClass().getName());
+        e2.setValue("ANY");
+        autoDetectAnnot.addMemberValue("getterVisibility", e2);
 
-		// Add type info on specific class or set at mapper wide level for all classes.
-		// @JsonTypeInfo(defaultImpl = MyModel.class, include = JsonTypeInfo.As.PROPERTY, use = JsonTypeInfo.Id.MINIMAL_CLASS)
-		
-		try {
-			// cc.addMethod(m);
+        EnumMemberValue e3 = new EnumMemberValue(constPool);
+        e3.setType(Visibility.NONE.getClass().getName());
+        e3.setValue("ANY");
+        autoDetectAnnot.addMemberValue("setterVisibility", e3);
+
+        autoDetectAttr.addAnnotation(autoDetectAnnot);
+        ccFile.addAttribute(autoDetectAttr);
+
+        // @JsonPropertyOrder({ "id", "version", "tenant" })
+        AnnotationsAttribute orderAttr = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
+        Annotation orderAnnot = new Annotation("com.fasterxml.jackson.annotation.JsonPropertyOrder", constPool);
+        ArrayList<StringMemberValue> members = new ArrayList<StringMemberValue>();
+        StringMemberValue member = new StringMemberValue(constPool);
+        member.setValue("id");
+        members.add(member);
+        StringMemberValue member2 = new StringMemberValue(constPool);
+        member2.setValue("version");
+        members.add(member2);
+        ArrayMemberValue arrayValue = new ArrayMemberValue(constPool);
+        arrayValue.setValue(members.toArray(new MemberValue[0]));
+        orderAnnot.addMemberValue("value", arrayValue); // The property name of JsonPropertyOrder#value().
+        orderAttr.addAnnotation(orderAnnot);
+        ccFile.addAttribute(orderAttr);
+
+        // Add type info on specific class or set at mapper wide level for all classes.
+        // @JsonTypeInfo(defaultImpl = MyModel.class, include = JsonTypeInfo.As.PROPERTY, use =
+        // JsonTypeInfo.Id.MINIMAL_CLASS)
+
+        try {
+            // cc.addMethod(m);
             String extraMethodDef = "public abstract java.util.Map extraFields();";
-			CtMethod extraMethod = CtNewMethod.make(extraMethodDef, cc); // CtMethod.make(extraMethodDef, cc);
-			cc.addMethod(extraMethod);
-			AnnotationsAttribute anyGetterAttribute = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
-			Annotation anyGetterAnnotation = new Annotation("com.fasterxml.jackson.annotation.JsonAnyGetter", constPool);
-			anyGetterAttribute.addAnnotation(anyGetterAnnotation);
-			extraMethod.getMethodInfo().addAttribute(anyGetterAttribute);
+            CtMethod extraMethod = CtNewMethod.make(extraMethodDef, cc); // CtMethod.make(extraMethodDef, cc);
+            cc.addMethod(extraMethod);
+            AnnotationsAttribute anyGetterAttribute = new AnnotationsAttribute(constPool,
+                    AnnotationsAttribute.visibleTag);
+            Annotation anyGetterAnnotation = new Annotation("com.fasterxml.jackson.annotation.JsonAnyGetter",
+                    constPool);
+            anyGetterAttribute.addAnnotation(anyGetterAnnotation);
+            extraMethod.getMethodInfo().addAttribute(anyGetterAttribute);
 
-			String anySetterMethodDef = "public abstract com.tugmodel.client.model.Model set(String name, Object value);";
-			CtMethod anySetterMethod = CtNewMethod.make(anySetterMethodDef, cc);
-			cc.addMethod(anySetterMethod);
-			AnnotationsAttribute anySetterAttribute = new AnnotationsAttribute(constPool, AnnotationsAttribute.visibleTag);
-			Annotation anySetterAnnotation = new Annotation("com.fasterxml.jackson.annotation.JsonAnySetter", constPool);
-			anySetterAttribute.addAnnotation(anySetterAnnotation);
-			anySetterMethod.getMethodInfo().addAttribute(anySetterAttribute);
+            String anySetterMethodDef = "public abstract com.tugmodel.client.model.Model set(String name, Object value);";
+            CtMethod anySetterMethod = CtNewMethod.make(anySetterMethodDef, cc);
+            cc.addMethod(anySetterMethod);
+            AnnotationsAttribute anySetterAttribute = new AnnotationsAttribute(constPool,
+                    AnnotationsAttribute.visibleTag);
+            Annotation anySetterAnnotation = new Annotation("com.fasterxml.jackson.annotation.JsonAnySetter",
+                    constPool);
+            anySetterAttribute.addAnnotation(anySetterAnnotation);
+            anySetterMethod.getMethodInfo().addAttribute(anySetterAttribute);
 
-			// cc.writeFile(); // Write file to disc. It works.
-			Class mixinClass = cc.toClass();
-			context.setMixInAnnotations(meta.modelClass(), mixinClass);
-			
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
-		
-		
-	}
+            // cc.writeFile(); // Write file to disc. It works.
+            Class mixinClass = cc.toClass();
+            context.setMixInAnnotations(meta.modelClass(), mixinClass);
 
-	@Override
-	public void setupModule(SetupContext context) {
-		
-		List<Meta> metas = Meta.s.fetchAll();
-		for (Meta meta : metas) {
-			generateModelMixin(meta, context);
-		}
-	
-	}
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    @Override
+    public void setupModule(SetupContext context) {
+
+        List<Meta> metas = Meta.s.fetchAll();
+        for (Meta meta : metas) {
+            generateModelMixin(meta, context);
+        }
+
+    }
 }
